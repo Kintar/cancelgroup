@@ -5,6 +5,6 @@ See the [cancellation examples] for an explanation of the context cancel behavio
 cancelgroup package is to allow g.Wait() to return immediately upon cancellation of the parent context, and when possible
 to abort the execution of the subordinate goroutines.
 
-[cancellation examples]: https://github.com/Kintar/cancelgroup/
+[cancellation examples]: https://github.com/Kintar/cancelgroup/blob/main/errgroup_exampe_context_cancel.go
 */
 package cancelgroup

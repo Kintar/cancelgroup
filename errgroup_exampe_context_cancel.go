@@ -8,11 +8,9 @@ import (
 	"time"
 )
 
-// Cancel demonstrates that canceling the parent context of an errgroup.Group does not immediately
+// ParentContextCancel demonstrates that canceling the parent context of an errgroup.Group does not immediately
 // abort running goroutines within that group.
-//
-
-func ExampleGroup_cancel() {
+func ExampleGroup_parentContextCancel() {
 	var gr1_complete, gr2_complete bool
 	gr1 := func() error {
 		<-time.After(time.Second * 4)
@@ -33,4 +31,25 @@ func ExampleGroup_cancel() {
 	fmt.Println("After context cancel:", gr1_complete, gr2_complete, context.Cause(ctx))
 	err := g.Wait()
 	fmt.Println("After Group.Wait: ", gr1_complete, gr2_complete, err)
+}
+
+// ErrGroupCancel demonstrates that g.Wait() does not return until all goroutines have exited, regardless of the group's
+// context's cancellation status.
+func ExampleGroup_errGroupCancel() {
+	gr1 := func() error {
+		<-time.After(time.Second * 4)
+		return errors.New("group 1 error")
+	}
+	gr2 := func() error {
+		<-time.After(time.Second * 2)
+		return errors.New("group 2 error")
+	}
+	start := time.Now()
+	g, ctx := errgroup.WithContext(context.Background())
+	g.Go(gr1)
+	g.Go(gr2)
+	<-ctx.Done()
+	fmt.Printf("context has been canceled after %dms: %v\n", time.Now().Sub(start).Milliseconds(), context.Cause(ctx))
+	err := g.Wait()
+	fmt.Printf("Group.Wait is now complete after %dms: %v\n", time.Now().Sub(start).Milliseconds(), err)
 }
