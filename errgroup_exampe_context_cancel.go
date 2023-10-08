@@ -30,7 +30,7 @@ func ExampleGroup_parentContextCancel() {
 	<-ctx.Done()
 	fmt.Println("After context cancel:", gr1_complete, gr2_complete, context.Cause(ctx))
 	err := g.Wait()
-	fmt.Println("After Group.Wait: ", gr1_complete, gr2_complete, err)
+	fmt.Println("After group.Wait: ", gr1_complete, gr2_complete, err)
 }
 
 // ErrGroupCancel demonstrates that g.Wait() does not return until all goroutines have exited, regardless of the group's
@@ -51,5 +51,5 @@ func ExampleGroup_errGroupCancel() {
 	<-ctx.Done()
 	fmt.Printf("context has been canceled after %dms: %v\n", time.Now().Sub(start).Milliseconds(), context.Cause(ctx))
 	err := g.Wait()
-	fmt.Printf("Group.Wait is now complete after %dms: %v\n", time.Now().Sub(start).Milliseconds(), err)
+	fmt.Printf("group.Wait is now complete after %dms: %v\n", time.Now().Sub(start).Milliseconds(), err)
 }
