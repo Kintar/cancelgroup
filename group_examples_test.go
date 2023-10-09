@@ -37,6 +37,12 @@ func ExampleGroup_Co() {
 		return nil
 	})
 
+	g.Go(func() error {
+		<-time.After(time.Millisecond * 250)
+		g.Cancel()
+		return nil
+	})
+
 	fmt.Println(g.Wait())
 }
 
