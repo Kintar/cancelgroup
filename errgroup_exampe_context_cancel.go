@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// ParentContextCancel demonstrates that canceling the parent context of an errgroup.Group does not immediately
-// abort running goroutines within that group.
+// ParentContextCancel demonstrates that canceling the parent context of an errgroup.Group does not immediately abort
+// running goroutines within that group.
 func ExampleGroup_parentContextCancel() {
 	var gr1_complete, gr2_complete bool
 	gr1 := func() error {

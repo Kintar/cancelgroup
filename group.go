@@ -6,13 +6,17 @@ import (
 	"sync"
 )
 
-var ErrorParentContextCanceled = errors.New("group: parent context was canceled")
+// ErrorGroupCanceled is returned from the Wait or ContextCause methods of a Group when the group's Cancel method is
+// called.
+var ErrorGroupCanceled = errors.New("group canceled")
 
-var errTaskAborted = errors.New("abort Task due to context completion")
+// ErrorParentContextCanceled is returned from the Wait or ContextCause methods of a Group which was aborted due to its
+// parent context being canceled.
+var ErrorParentContextCanceled = errors.New("group parent context was canceled")
 
 // Task represents a function which will be run inside a group, but which is not capable of coordinating its work on
-// a context.Context. A Task which is added to a group will be run inside a goroutine which will panic if the parent
-// context is canceled. The panic will be recovered and will not terminate the runtime.
+// a context.Context. A Task which is run in a group will continue to run until it naturally terminates, even if the
+// Group or its parent context is canceled.
 type Task func() error
 
 // CoordinatedTask represents a Task which is capable of monitoring a context and cleanly exiting if the context is
@@ -27,8 +31,14 @@ type Group interface {
 	// Wait blocks the calling goroutine until this Group completes, then returns the error, if any, which aborted
 	// the group.
 	Wait() error
-	// Go starts the given Task on a new goroutine.
-	Go(Task)
+	// Run starts the given Task on a new goroutine. Since the Task deos not accept a context, it is not capable of
+	// being canceled.
+	Run(Task)
+	// Go starts the given CoordinatedTask on a new goroutine, passing the context of the Group in for coordination of
+	// early cancel.
+	Go(task CoordinatedTask)
+	// Cancel cancels the group's context and sets
+	Cancel()
 }
 
 // New creates a new Group and associated context.Context. If the calling code needs the ability to cancel a long-running
@@ -42,17 +52,29 @@ func New() (Group, context.Context) {
 	return NewWithContext(ctx), ctx
 }
 
+// NewWithContext creates a new Group and derives a new context from the given Context. If the parent context is canceled,
+// the Group's context will also be canceled.
+//
+// When all tasks run inside the returning group are complete, the Context will be completed. The group context's casuse
+// will be nil if all tasks completed successfully, otherwise it will contain the first error returned by a group task.
 func NewWithContext(ctx context.Context) Group {
-	g := &group{}
+	g := &group{
+		ctxParent: ctx,
+	}
+
+	g.waitFunction = sync.OnceValue(func() error { return wait(g) })
+
 	g.ctx, g.cancelCause = context.WithCancelCause(ctx)
 	return g
 }
 
 type group struct {
-	wg          sync.WaitGroup
-	errOnce     sync.Once
-	ctx         context.Context
-	cancelCause context.CancelCauseFunc
+	wg           sync.WaitGroup
+	errOnce      sync.Once
+	waitFunction func() error
+	ctxParent    context.Context
+	ctx          context.Context
+	cancelCause  context.CancelCauseFunc
 }
 
 func (g *group) done() {
@@ -63,41 +85,50 @@ func (g *group) errored(err error) {
 	g.errOnce.Do(func() { g.cancelCause(err) })
 }
 
-// recoverChildPanic traps a panic sequence from a Task in order to determine if the panic was caused by the Group
-// context being canceled. If it was, we ignore the panic. If not, the panic is re-triggered.
-func (g *group) recoverChildPanic() {
-	if r := recover(); r != nil {
-		//goland:noinspection GoTypeAssertionOnErrors
-		if err, ok := r.(error); ok {
-			if errors.Is(err, errTaskAborted) {
-				g.errored(err)
-				return
-			}
-		}
-		panic(r)
-	}
+func (g *group) Cancel() {
+	g.errored(ErrorGroupCanceled)
 }
 
-// Go adds the given Task to the Group and starts it on a new goroutine. If this Group's context is canceled, the
-// goroutine will be terminated and the task will die in a nondeterministic state.
-func (g *group) Go(t Task) {
+// Run adds the given Task to the Group and starts it on a new goroutine. Since a Task does not accept a context, Tasks
+// will continue to run until their natural termination even if the Group is canceled.
+func (g *group) Run(t Task) {
 	g.wg.Add(1)
 	go func() {
-		defer g.recoverChildPanic()
 		if err := t(); err != nil {
 			g.errored(err)
 		}
 	}()
 }
 
-// GoCtx adds the given CoordinatedTask to the Group and starts it on a new goroutine. If this Group's context is
-// cancelled, the goroutine wil continue and the CoordinatedTask is expected to exit as soon as possible.
-func (g *group) GoCtx(t CoordinatedTask) {
-	panic("not implemented")
+// Go adds the given CoordinatedTask to the Group and starts it on a new goroutine, passing in the Group's context.
+// A CoordinatedTask **MUST** monitor ctx.Done() and exit as soon as possible once detecting the context is canceled.
+func (g *group) Go(t CoordinatedTask) {
+	g.wg.Add(1)
+	go func() {
+		if err := t(g.ctx); err != nil {
+			g.errored(err)
+		}
+	}()
 }
+
+type nothing struct{}
 
 // Wait will block the calling goroutine until this Group's tasks have all completed successfully, or until the Group's
 // context is canceled due to a child task error or the parent context's completion.
 func (g *group) Wait() error {
-	panic("not implemented")
+	return g.waitFunction()
+}
+
+func wait(g *group) error {
+	ch := make(chan nothing)
+	go func() {
+		g.wg.Wait()
+		ch <- nothing{}
+	}()
+	select {
+	case <-g.ctx.Done():
+	case <-ch:
+	}
+
+	return context.Cause(g.ctx)
 }
