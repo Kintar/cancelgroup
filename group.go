@@ -41,15 +41,10 @@ type Group interface {
 	Cancel()
 }
 
-// New creates a new Group and associated context.Context. If the calling code needs the ability to cancel a long-running
-// Group, use NewWithContext and pass in a parent context for which the calling routine owns a context.CancelFunc or
-// context.CancelCauseFunc.
-//
-// When all tasks run inside the returning group are complete, the Context will be completed and context.Cause will
-// return nil if all tasks completed successful, or the error returned by the first failed task within the Group.
-func New() (Group, context.Context) {
-	ctx := context.Background()
-	return NewWithContext(ctx), ctx
+// New creates a new Group. If the calling code needs the ability to cancel a long-running Group, use NewWithContext and
+// pass in a parent context for which the calling routine owns a context.CancelFunc or context.CancelCauseFunc.
+func New() Group {
+	return NewWithContext(context.Background())
 }
 
 // NewWithContext creates a new Group and derives a new context from the given Context. If the parent context is canceled,
@@ -94,6 +89,7 @@ func (g *group) Cancel() {
 func (g *group) Run(t Task) {
 	g.wg.Add(1)
 	go func() {
+		defer g.done()
 		if err := t(); err != nil {
 			g.errored(err)
 		}
@@ -105,6 +101,7 @@ func (g *group) Run(t Task) {
 func (g *group) Go(t CoordinatedTask) {
 	g.wg.Add(1)
 	go func() {
+		defer g.done()
 		if err := t(g.ctx); err != nil {
 			g.errored(err)
 		}
