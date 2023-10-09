@@ -27,12 +27,12 @@ func DelayWorker() cancelgroup.CoordinatedTask {
 	}
 }
 
-// Go schedules a CoordinatedTask on the Group. Coordinated tasks are simply functions which accept a context.Context
+// Co schedules a CoordinatedTask on the Group. Coordinated tasks are simply functions which accept a context.Context
 // as their only parameter, and are expected to exit gracefully as soon as possible after the context is canceled.
-func ExampleGroup_Go() {
+func ExampleGroup_Co() {
 	g := cancelgroup.New()
 
-	g.Go(func(ctx context.Context) error {
+	g.Co(func(ctx context.Context) error {
 		<-ctx.Done()
 		return nil
 	})
@@ -40,10 +40,10 @@ func ExampleGroup_Go() {
 	fmt.Println(g.Wait())
 }
 
-// Run schedules a Task on the Group. Tasks are simple functions which return an error, but are not capable of exiting
+// Go schedules a Task on the Group. Tasks are simple functions which return an error, but are not capable of exiting
 // based on the Done status of a context.Context. They will continue to run even after a Group is canceled, but will
 // not affect the value returned by Group.Wait().
-func ExampleGroup_Run() {
+func ExampleGroup_Go() {
 	g := cancelgroup.New()
 	errTaskCompleted := errors.New("task completed")
 
@@ -51,28 +51,28 @@ func ExampleGroup_Run() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	// track the start time of our group
+	// track the start time of our Group
 	start := time.Now()
 
-	g.Run(func() error {
+	g.Go(func() error {
 		defer wg.Done()
 		<-time.After(time.Millisecond * 250)
 		return errTaskCompleted
 	})
 
-	// cancel the group so that Wait returns immediately
+	// cancel the Group so that Wait returns immediately
 	g.Cancel()
 
 	// read the error
 	err := g.Wait()
 
-	// track the time the group.Wait call completed
+	// track the time the Group.Wait call completed
 	waitCompleteAt := time.Now()
 
 	fmt.Println("wait completed in", waitCompleteAt.Sub(start).Milliseconds(), "ms")
 
 	// err will be ErrorGroupCanceled, not errTaskCompleted
-	fmt.Println("group error is: ", err)
+	fmt.Println("Group error is: ", err)
 
 	// Now wait for the scheduled task to finish
 	wg.Wait()
@@ -81,5 +81,5 @@ func ExampleGroup_Run() {
 	fmt.Println("task completed in", taskCompleteAt.Sub(start).Milliseconds(), "ms")
 
 	// err will be ErrorGroupCanceled, not errTaskCompleted
-	fmt.Println("group error is: ", err)
+	fmt.Println("Group error is: ", err)
 }

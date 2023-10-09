@@ -1,10 +1,16 @@
 /*
-Package cancelgroup expands on the capabilities of golang.org/x/sync/errgroup to provide fail-fast cancellation of routines running within a group.
+Package cancelgroup provides a mechanism to coordinate related tasks of goroutines and associate them with a cancelable
+context.
 
-See the [cancellation examples] for an explanation of the context cancel behavior of errgroup.Group. The purpose of the
-cancelgroup package is to allow g.Wait() to return immediately upon cancellation of the parent context, and when possible
-to abort the execution of the subordinate goroutines.
+The [errgroup package] is very useful for coordinating groups of goroutines and limiting the number of active goroutines,
+and will allow other goroutines to coordinate based on a context created by the error Group. However, there is no way to
+supply a parent context which can cancel the Group, and the Group's `Wait()` method blocks until all goroutines are complete
+even when a routine fails and sets the Group's error.
 
-[cancellation examples]: https://github.com/Kintar/cancelgroup/blob/main/errgroup_exampe_context_cancel.go
+The Group in this package guarantees that Wait will return immediately when the Group's context is canceled. It also
+provides a mechanism to schedule tasks which accept an incoming context, allowing those tasks to cleanly exit if the
+Group is canceled.
+
+[errgroup package]: https://pkg.go.dev/golang.org/x/sync/errgroup
 */
 package cancelgroup

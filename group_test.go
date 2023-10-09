@@ -10,9 +10,8 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	g := New()
-	grp, ok := g.(*group)
-	assert.Truef(t, ok, "New did not create *group")
+	grp := New()
+
 	assert.NotNil(t, grp.cancelCause, "cancelCause")
 	assert.NotNil(t, grp.ctxParent, "ctxParent")
 	assert.NotNil(t, grp.waitFunction, "waitFunction")
@@ -21,9 +20,7 @@ func TestNew(t *testing.T) {
 func TestNewWithContext(t *testing.T) {
 	pCtx, pCancel := context.WithCancelCause(context.Background())
 	defer pCancel(nil)
-	g := NewWithContext(pCtx)
-	grp, ok := g.(*group)
-	assert.Truef(t, ok, "NewWithContext did not create *group")
+	grp := NewWithContext(pCtx)
 	assert.NotEqual(t, pCtx, grp.ctx, "contexts are equal")
 }
 
@@ -49,7 +46,7 @@ func Test_Go_and_Wait(t *testing.T) {
 	var count atomic.Int32
 	g := New()
 	for i := 0; i < TaskCount; i++ {
-		g.Go(add(&count))
+		g.Co(add(&count))
 	}
 
 	assert.Nil(t, g.Wait())
@@ -60,7 +57,7 @@ func Test_Run_and_Wait(t *testing.T) {
 	var count atomic.Int32
 	g := New()
 	for i := 0; i < TaskCount; i++ {
-		g.Run(addNoCtx(&count))
+		g.Go(addNoCtx(&count))
 	}
 
 	assert.Nil(t, g.Wait())
@@ -87,7 +84,7 @@ func Test_waitReturnsAfterContextCancel(t *testing.T) {
 
 	// this will delay for one second, but return immediately when the context is canceled
 	for i := 0; i < TaskCount; i++ {
-		g.Go(delayOnContext)
+		g.Co(delayOnContext)
 	}
 
 	// this will mark our flag when g.Wait() returns
@@ -119,7 +116,7 @@ func Test_waitReturnsAfterContextCancel_evenAfterRun(t *testing.T) {
 
 	// this will delay for one second, but return immediately when the context is canceled
 	for i := 0; i < TaskCount; i++ {
-		g.Run(delay)
+		g.Go(delay)
 	}
 
 	// this will mark our flag when g.Wait() returns
@@ -146,7 +143,7 @@ func Test_waitDoesNotReturnEarly(t *testing.T) {
 
 	// this will delay for one second, but return immediately when the context is canceled
 	for i := 0; i < TaskCount; i++ {
-		g.Go(func(_ context.Context) error {
+		g.Co(func(_ context.Context) error {
 			<-time.After(250 * time.Millisecond)
 			return nil
 		})
@@ -164,7 +161,7 @@ func Test_waitDoesNotReturnEarly_afterRun(t *testing.T) {
 
 	// this will delay for one second, but return immediately when the context is canceled
 	for i := 0; i < TaskCount; i++ {
-		g.Run(func() error {
+		g.Go(func() error {
 			<-time.After(250 * time.Millisecond)
 			return nil
 		})
@@ -188,7 +185,7 @@ func Test_parentContextCancelsGroup(t *testing.T) {
 
 	// this will delay for one second, but return immediately when the context is canceled
 	for i := 0; i < TaskCount; i++ {
-		g.Go(delayOnContext)
+		g.Co(delayOnContext)
 	}
 
 	// this will mark our flag when g.Wait() returns
